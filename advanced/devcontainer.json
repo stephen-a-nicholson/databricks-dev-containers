@@ -1,0 +1,44 @@
+{
+  "name": "uv",
+  "build": { 
+    "dockerfile": "Dockerfile",
+    "args": {
+      "USER_UID": "501",
+      "USER_GID": "501"
+    }
+  },
+  "remoteUser": "developer",
+  "containerUser": "developer",
+  "updateRemoteUserUID": true,
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "streetsidesoftware.code-spell-checker",
+        "esbenp.prettier-vscode",
+        "databricks.databricks",
+        "redhat.vscode-yaml",
+        "eamodio.gitlens",
+        "donjayamanne.githistory",
+        "mhutchie.git-graph",
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+        "timonwong.shellcheck",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {}
+  },
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/developer/.ssh,type=bind,z",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.databrickscfg,target=/home/developer/.databrickscfg,type=bind,z"
+  ],
+  "runArgs": [
+    "--userns=keep-id:uid=501,gid=501"
+  ],
+  "containerEnv": {
+    "HOME": "/home/developer"
+  }
+}

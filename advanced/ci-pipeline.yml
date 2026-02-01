@@ -1,0 +1,88 @@
+name: CI Pipeline
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - '*'
+  paths:
+    exclude:
+      - databricks/**
+      - databricks.yml
+      - deploy-bundle.yml
+
+jobs:
+  - job: PreCommitChecks
+    displayName: 'Pre-commit & Linting'
+    timeoutInMinutes: 10
+    pool:
+      vmImage: 'ubuntu-22.04'
+
+    steps:
+      - bash: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "##vso[task.prependpath]$HOME/.cargo/bin"
+        displayName: 'Install uv'
+
+      - bash: |
+          # Install pre-commit using uv
+          uv tool install pre-commit
+
+          # Add uv tools to PATH
+          echo "##vso[task.prependpath]$HOME/.local/bin"
+        displayName: 'Install pre-commit'
+
+      - bash: |
+          pre-commit run --all-files --show-diff-on-failure
+        displayName: 'Run pre-commit hooks'
+        continueOnError: true
+
+  - job: BuildAndTest
+    displayName: 'Build & Test'
+    timeoutInMinutes: 60
+    pool:
+      vmImage: 'ubuntu-22.04'
+
+    steps:
+      - bash: |
+          docker build -t test-runner:latest -f advanced/Dockerfile .
+        displayName: 'Build Docker image'
+
+      - bash: |
+          echo "Running tests in container..."
+          docker run --rm \
+            -v $(Build.SourcesDirectory):/workspace \
+            -w /workspace \
+            -e PYTHONPATH=/workspace/source \
+            -e JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64 \
+            --user root \
+            test-runner:latest \
+            bash -c '
+              set -e
+              echo "=== Verify Java ===" && \
+              java -version && \
+              echo "JAVA_HOME=$JAVA_HOME" && \
+
+              echo "=== Install dependencies ===" && \
+              pip install --break-system-packages -r tests/requirements-test.txt && \
+              pip install --break-system-packages pytest pytest-cov pytest-azurepipelines && \
+
+              echo "=== Run tests ===" && \
+              python -m pytest --junitxml=test-results.xml --cov=. --cov-report=xml -v
+            '
+        displayName: 'Run tests in container'
+        continueOnError: true
+
+      - task: PublishTestResults@2
+        condition: always()
+        inputs:
+          testResultsFiles: '**/test-results.xml'
+          testRunTitle: 'Test Results'
+        displayName: 'Publish test results'
+
+      - task: PublishCodeCoverageResults@1
+        condition: always()
+        inputs:
+          codeCoverageTool: Cobertura
+          summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+        displayName: 'Publish code coverage'
