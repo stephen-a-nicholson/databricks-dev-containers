@@ -13,5 +13,5 @@
       ]
     }
   },
-  "postCreateCommand": "pip install databricks-cli databricks-connect uv pytest ruff chispa"
+  "postCreateCommand": "pip install databricks-connect uv pytest ruff chispa"
 }

@@ -1,205 +1,77 @@
-# Databricks Dev Containers Setup
+# databricks-dev-containers
 
-Local PySpark development with VS Code Dev Containers + Databricks Connect + CI/CD.
+Local PySpark development in VS Code with Dev Containers, Databricks Connect and a CI/CD pipeline. Production code lives in `.py` files under version control, runs on a real Databricks cluster from your laptop, and gets tested before it's deployed.
 
-Write PySpark locally in VS Code. Execute on remote Databricks clusters. Deploy automatically.
+## Why this exists
 
-## Quick Start (5 Minutes)
+Most Databricks teams write production pipelines in notebooks because that's what the workspace puts in front of you. It works until the second engineer joins: the diffs are unreadable, there are no tests, the "exported notebook" commits pile up, and nobody can run anything without the browser. This repo is the setup I converged on across client projects to get a normal software engineering workflow (IDE, tests, linting, pull requests, pipeline) while still executing against Databricks compute.
 
-### Prerequisites
+Two variants are included. The simple one gets a new engineer from clone to running PySpark against a cluster in about five minutes. The advanced one is the version you'd standardise a team on.
 
-- Docker Desktop installed and running
-- VS Code with [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-- Databricks workspace access
-- Git
+## Simple setup
 
-### Option 1: Simple Setup (Recommended to Start)
+Prerequisites: Docker Desktop, VS Code with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), and access to a Databricks workspace.
 
-Perfect for getting started quickly. Uses Microsoft's pre-built Python image.
-
-1. Clone this repo:
-```bash
-git clone https://github.com/stephen-a-nicholson/databricks-dev-containers.git
-cd databricks-dev-containers
-```
-
-2. Open in VS Code:
-```bash
-code .
-```
-
-3. When prompted, click **"Reopen in Container"**  
-   (Or: Cmd/Ctrl+Shift+P → "Dev Containers: Reopen in Container")
-
-4. Wait for container to build (~2 minutes first time)
-
-5. Configure Databricks:
-   - Open Databricks extension in sidebar
-   - Click "Configure Databricks"
-   - Sign in and select your workspace
-
-6. Start coding! Create a new Python file and write PySpark.
-
-That's it. You're now writing PySpark locally with full IDE support.
-
-### Option 2: Production Setup
-
-For teams wanting a robust, customised environment. See [`advanced/README.md`](advanced/README.md).
-
-Includes:
-- Custom Debian-based Docker image
-- Oh My Zsh with plugins
-- UV for ultra-fast package management
-- Proper UID/GID handling
-- SSH key mounting
-- Full CI/CD pipeline
-
-## What You Get
-
-### 🎯 Real IDE Experience
-- IntelliSense and autocomplete for PySpark
-- Real-time syntax checking with Pylance
-- Debugging with breakpoints
-- Refactoring tools
-- Git integration that actually works
-
-### 📦 Actual Version Control
-- Write PySpark in `.py` files (not notebooks)
-- Git diffs that make sense
-- Proper code review in pull requests
-- No more "exported notebook" commits
-
-### ✅ Automated Testing
-- Run pytest locally before pushing
-- Integrate with CI/CD (GitHub Actions, Azure Pipelines)
-- Pre-commit hooks with ruff linting
-- Test against real Databricks clusters
-
-### 🚀 Remote Execution
-- Execute code on Databricks clusters instantly
-- No uploading or syncing needed
-- See results in VS Code terminal
-- Full Databricks Connect support
-
-## Example Workflow
+1. Clone the repo and open it in VS Code:
+   ```bash
+   git clone https://github.com/stephen-a-nicholson/databricks-dev-containers.git
+   cd databricks-dev-containers
+   code .
+   ```
+2. When VS Code offers, choose **Reopen in Container**. First build takes a couple of minutes.
+3. Open the Databricks extension in the sidebar, choose **Configure Databricks**, sign in and pick your workspace and cluster.
+4. Write PySpark in a `.py` file and run it. It executes on the cluster, with results in the VS Code terminal.
 
 ```python
-# my_pipeline.py
 from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.getOrCreate()
 
-# This runs on your Databricks cluster!
-df = spark.read.table("sales")
-result = df.groupBy("region").sum("revenue")
-result.show()
+df = spark.read.table("samples.nyctaxi.trips")   # runs on your Databricks cluster
+df.groupBy("pickup_zip").count().show()
 ```
 
-Run it:
-```bash
-python my_pipeline.py
+The container uses Microsoft's Python 3.11 image, installs the Azure CLI, the Databricks VS Code extension and Pylance, and runs `pip install databricks-connect uv pytest ruff chispa` on first start. Databricks Connect needs a version that matches your cluster's runtime; if the versions disagree you'll get a clear error on first run, and pinning `databricks-connect==<runtime major.minor>.*` in `postCreateCommand` fixes it.
+
+## What you get
+
+- A real IDE: autocomplete for PySpark, type checking, breakpoints, refactoring, Git that behaves.
+- Code in `.py` files, so pull requests show actual diffs and reviewers can review.
+- Tests with pytest and [chispa](https://github.com/MrPowers/chispa) for DataFrame assertions, run locally before anything is pushed.
+- Linting with ruff.
+- Remote execution through Databricks Connect, with no upload step.
+
+## Advanced setup
+
+For teams. See [`advanced/README.md`](advanced/README.md). It adds a custom Debian-based image, UID/GID mapping so file permissions behave on Mac and Linux, SSH key mounting, uv for dependency management, the Databricks CLI pre-installed, and an Azure Pipelines workflow (`ci-pipeline.yml`) that lints, tests and deploys. GitHub Actions users can translate it line for line.
+
+Pair it with [Databricks Asset Bundles](https://docs.databricks.com/dev-tools/bundles/index.html) for deployment: add a `databricks.yml` at the project root and the pipeline deploys from the same code it just tested.
+
+## Project layout
+
+```
+.devcontainer/devcontainer.json   simple setup
+advanced/                         custom image, advanced devcontainer.json, Azure Pipelines CI
+examples/simple_pipeline.py       a small PySpark job
+examples/test_simple_pipeline.py  its tests
+source/                           your code
+tests/                            your tests
 ```
 
-Results appear instantly. No uploads. No waiting.
+## Common questions
 
-## Project Structure
+**Can I still use notebooks?** Yes, for exploration. The point of this setup is that production code doesn't live in them.
 
-```
-databricks-dev-containers/
-├── README.md                     # This file
-├── .devcontainer/
-│   └── devcontainer.json         # Simple setup config
-├── advanced/
-│   ├── README.md                 # Production setup guide
-│   ├── Dockerfile                # Custom image
-│   ├── devcontainer.json         # Advanced config
-│   └── ci-pipeline.yml           # Azure Pipelines CI/CD
-├── examples/
-│   ├── simple_pipeline.py        # Example PySpark code
-│   └── test_simple_pipeline.py   # Example tests
-├── source/                       # Your PySpark code goes here
-└── tests/                        # Your tests go here
-```
+**Does it work on Windows, Mac and Linux?** Yes. Dev Containers behave the same on all three; the UID/GID notes in the advanced README cover the one place Mac and Linux differ.
 
-## Next Steps
+**The Databricks extension won't connect.** Create `~/.databrickscfg` in the container with your workspace host and a token, or sign in through the extension with OAuth. Service principals rather than personal tokens for anything shared.
 
-### For Beginners
-1. Use the simple setup above
-2. Create a Python file in `source/`
-3. Write some PySpark code
-4. Execute against your Databricks cluster
-5. Enjoy the workflow!
-
-### For Teams
-1. Check out [`advanced/README.md`](advanced/README.md)
-2. Customize the Dockerfile for your needs
-3. Set up CI/CD pipeline
-4. Configure Asset Bundles for deployment
-5. Add pre-commit hooks
-
-## Common Questions
-
-### Do I need Databricks Connect?
-It's included! The `postCreateCommand` in devcontainer.json installs it automatically.
-
-### Can I use this with GitHub Actions?
-Yes! The CI/CD example uses Azure Pipelines, but you can adapt it for GitHub Actions.
-
-### What about Databricks Asset Bundles?
-Absolutely. This setup works great with Asset Bundles for deployment. Add your `databricks.yml` to the project root.
-
-### Can I use notebooks?
-You can, but the whole point is to avoid notebook-driven development for production code. Use `.py` files and version control them properly.
-
-### Does this work on Windows/Mac/Linux?
-Yes, all three. Dev Containers work the same everywhere.
-
-## Troubleshooting
-
-### Container won't start
-- Make sure Docker Desktop is running
-- Check you have enough disk space (~2GB for images)
-- Try: Docker → Preferences → Reset to factory defaults
-
-### Databricks extension won't connect
-- Create `~/.databrickscfg` with your workspace details:
-```ini
-[DEFAULT]
-host = https://your-workspace.cloud.databricks.com
-token = dapi123...
-```
-- Get token from: Databricks → Settings → User Settings → Access Tokens
-
-### "Module not found" errors
-The container installs common packages. To add more:
-```bash
-# Inside the container
-pip install your-package-here
-```
-
-Or add to `postCreateCommand` in `devcontainer.json`.
-
-## Resources
-
-- [Databricks Dev Tools Docs](https://docs.databricks.com/dev-tools/index.html)
-- [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
-- [Databricks Connect](https://docs.databricks.com/dev-tools/databricks-connect.html)
-- [Databricks Asset Bundles](https://docs.databricks.com/dev-tools/bundles/index.html)
+**Module not found.** Add the package to `postCreateCommand` in `devcontainer.json` so the next person gets it too, rather than installing it by hand in the container.
 
 ## Contributing
 
-Found a bug? Have a suggestion? Open an issue or PR!
+Issues and pull requests welcome. If you've adapted the advanced setup for GitHub Actions or GitLab, a PR with the pipeline file would be useful to others.
 
-## License
+## Licence
 
-MIT License - use this however you want.
-
-## Questions?
-
-- Open an issue
-- Reach out on [LinkedIn](https://www.linkedin.com/in/stephen-nicholson/)
-- Check the [Databricks Community](https://community.databricks.com/)
-
----
-
-**Like this setup?** ⭐ Star the repo and share it with your team!
+MIT.
